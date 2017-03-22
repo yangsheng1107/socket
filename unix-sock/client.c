@@ -1,16 +1,18 @@
 /*
- * tcpclient.c - A simple TCP client
- * usage: tcpclient <host> <port>
+ * client.c - A simple TCP client
+ * usage: client <sock file>
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <netdb.h>
+#include <sys/un.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netdb.h>
+
 
 #define BUFSIZE 2048
 
@@ -86,9 +88,8 @@ int signal_setup()
 
 int main(int argc, char **argv)
 {
-    int   portno, sendLen;
-    struct sockaddr_in serveraddr;
-    struct hostent *server;
+    int   sendLen, len = 0;
+    struct sockaddr_un serveraddr;
     char *hostname, *line = NULL;
     char  sendBuf[BUFSIZE], sourceBuf[BUFSIZE];
     struct timeval timeout;
@@ -98,35 +99,27 @@ int main(int argc, char **argv)
         goto L_ERROR;
     }
 
-    if (argc != 3)
+    if (argc != 2)
     {
-        fprintf(stderr, "usage: %s <hostname> <port>\n", argv[0]);
+        fprintf(stderr, "usage: %s <sock file>\n", argv[0]);
         goto L_ERROR;
     }
 
     hostname = argv[1];
-    portno   = atoi(argv[2]);
 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sockfd < 0)
     {
         perror("ERROR opening socket");
         goto L_ERROR;
     }
 
-    server = gethostbyname(hostname);
-    if (server == NULL)
-    {
-        fprintf(stderr, "ERROR, no such host as %s\n", hostname);
-        goto L_ERROR;
-    }
-
     bzero((char *) &serveraddr, sizeof(serveraddr));
-    serveraddr.sin_family = AF_INET;
-    bcopy((char *)server->h_addr, (char *)&serveraddr.sin_addr.s_addr, server->h_length);
-    serveraddr.sin_port = htons(portno);
+    serveraddr.sun_family = AF_UNIX;
+    strcpy(serveraddr.sun_path, hostname);
+    len = strlen(serveraddr.sun_path) + sizeof(serveraddr.sun_family);
 
-    if (connect(sockfd, (struct sockaddr *)&serveraddr, sizeof(serveraddr)) < 0)
+    if (connect(sockfd, (struct sockaddr *)&serveraddr, len) < 0)
     {
         perror("ERROR connecting");
         goto L_ERROR;
